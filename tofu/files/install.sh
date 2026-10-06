@@ -2,9 +2,9 @@
 set -euo pipefail
 
 # -----------------------------------------------------------------------------
-# Kubernetes-App: Image-Provisioning (laeuft als root)
-# k3s wird nur installiert, gestartet wird es erst auf der Team-VM
-# (k8s-provision.sh) - sonst haette jede VM die Identitaet der Build-VM.
+# Kubernetes-App: Software installieren (beim ersten Boot, als root)
+# Installiert k3s (noch nicht gestartet), kubectl, helm und k9s. Den Cluster
+# startet und konfiguriert danach k8s-provision.sh.
 # -----------------------------------------------------------------------------
 
 export DEBIAN_FRONTEND=noninteractive
@@ -14,7 +14,7 @@ apt-get update -y
 apt-get install -y curl wget git vim nano htop jq bash-completion ufw ca-certificates
 
 # -----------------------------------------------------------------------------
-# [1] k3s installieren, aber nicht aktivieren
+# [1] k3s installieren, aber nicht starten
 # -----------------------------------------------------------------------------
 echo "Installing k3s (stable channel, service disabled)..."
 curl -sfL https://get.k3s.io |
@@ -45,21 +45,5 @@ curl -fsSL -o /tmp/k9s.deb "https://github.com/derailed/k9s/releases/latest/down
 apt-get install -y /tmp/k9s.deb
 rm -f /tmp/k9s.deb
 
-# -----------------------------------------------------------------------------
-# [3] Erststart-Skript und Lernmaterial
-# -----------------------------------------------------------------------------
-install -m 0755 /tmp/k8s-app/k8s-provision.sh /usr/local/bin/k8s-provision.sh
-install -m 0644 /tmp/k8s-app/profile.sh /etc/profile.d/k8s-app.sh
-
-# /etc/skel landet im Home jedes neuen Nutzers.
-mkdir -p /etc/skel/k8s-kurs
-cp -r /tmp/k8s-app/k8s-kurs/. /etc/skel/k8s-kurs/
-rm -rf /tmp/k8s-app
-
-# -----------------------------------------------------------------------------
-# [4] Cleanup
-# -----------------------------------------------------------------------------
 apt-get clean
-rm -rf /var/lib/apt/lists/*
-
-echo "Provisioning finished."
+echo "Installation finished."

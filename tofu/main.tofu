@@ -1,7 +1,7 @@
 # OpenTofu erwartet weiterhin das Schluesselwort "terraform"; die Provider
-# werden ueber registry.opentofu.org aufgeloest.
+# werden ueber registry.opentofu.org aufgeloest. .tofu-Dateien ab 1.8.
 terraform {
-  required_version = ">= 1.6"
+  required_version = ">= 1.8"
 
   required_providers {
     openstack = {
@@ -93,7 +93,7 @@ resource "terraform_data" "team_limit" {
   }
 }
 
-# Packer-Image aus Glance laden
+# Normales Ubuntu-Image; die Software installiert cloud-init beim ersten Boot.
 data "openstack_images_image_v2" "image" {
   name        = var.image_name
   most_recent = true
@@ -129,7 +129,16 @@ resource "openstack_compute_instance_v2" "team_vm" {
     uuid = var.network_uuid
   }
 
+  # Skripte gzip+base64: so stoeren ${...} der Shell das Template nicht, und
+  # user_data bleibt weit unter dem Nova-Limit von 64 KB.
   user_data = templatefile("${path.module}/cloud-init.yml.tpl", {
+    install_gz   = base64gzip(file("${path.module}/files/install.sh"))
+    provision_gz = base64gzip(file("${path.module}/files/k8s-provision.sh"))
+    profile_gz   = base64gzip(file("${path.module}/files/profile.sh"))
+    kurs_files = {
+      for f in fileset("${path.module}/files/k8s-kurs", "**") :
+      f => base64gzip(file("${path.module}/files/k8s-kurs/${f}"))
+    }
     team_name = each.key
     team_users = [
       for uid, user in local.users_map : {
@@ -168,11 +177,11 @@ resource "openstack_networking_floatingip_associate_v2" "team_fip_assoc" {
   port_id     = data.openstack_networking_port_v2.vm_port[each.key].id
 }
 
-# k3s-Start plus Nutzer-Einrichtung dauern nach ACTIVE noch ein paar
-# Minuten. Ohne Warten gingen die Zugangsdaten raus, bevor kubectl geht.
+# Software-Installation, k3s-Start und Nutzer-Einrichtung dauern nach ACTIVE
+# noch einige Minuten. Ohne Warten gingen die Zugangsdaten zu frueh raus.
 resource "time_sleep" "wait_for_cluster" {
   depends_on      = [openstack_compute_instance_v2.team_vm]
-  create_duration = "180s"
+  create_duration = "360s"
 }
 
 ############################

@@ -3,21 +3,22 @@
 ################################################
 
 variable "users" {
-  description = "Per-team roster — vom Worker injiziert. @platform:internal"
+  description = "Per-team roster — vom Worker injiziert."
   type = map(list(object({
     email = string
   })))
   default = {}
 }
 
-variable "image_name" {
-  description = "Glance-Image-Name — vom Worker zur Apply-Zeit gesetzt. @platform:internal"
-  type        = string
-}
-
 ################################################
 # Konfigurierbare Variablen
 ################################################
+
+variable "image_name" {
+  description = "Basis-Image (Ubuntu 24.04 empfohlen) @openstack:image:name"
+  type        = string
+  default     = "Ubuntu 24.04"
+}
 
 variable "network_uuid" {
   description = "Hauptnetzwerk @openstack:network:id"
@@ -49,7 +50,7 @@ variable "flavor_name" {
 # schuetzt das Projektkontingent, wie bei der Windows-App: lieber eine klare
 # Meldung vor dem Apply als ein Quota-Fehler mit halbfertigen Instanzen.
 variable "max_teams" {
-  description = "Obergrenze gleichzeitiger Team-Cluster @platform:limit"
+  description = "Obergrenze gleichzeitiger Team-Cluster"
   type        = number
   default     = 15
 

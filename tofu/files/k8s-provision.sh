@@ -139,6 +139,12 @@ EOF
 
   home=$(getent passwd "$user" | cut -d: -f6)
   group=$(id -gn "$user")
+  # Lernmaterial nachreichen, falls der Nutzer vor /etc/skel/k8s-kurs entstand.
+  if [ -d /etc/skel/k8s-kurs ] && [ ! -e "$home/k8s-kurs" ]; then
+    cp -r /etc/skel/k8s-kurs "$home/k8s-kurs"
+    chown -R "$user:$group" "$home/k8s-kurs"
+  fi
+
   install -d -m 0700 -o "$user" -g "$group" "$home/.kube"
   umask 077
   cat >"$home/.kube/config" <<EOF

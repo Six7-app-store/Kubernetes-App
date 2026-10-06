@@ -45,9 +45,32 @@ write_files:
     permissions: '0644'
     content: ${jsonencode(team_name)}
 
-# Eine Zeile, Skript liegt im Packer-Image.
+  # Skripte und Lernmaterial (aus tofu/files/, gzip+base64).
+  - path: /usr/local/sbin/k8s-install.sh
+    permissions: '0755'
+    encoding: gz+b64
+    content: ${install_gz}
+
+  - path: /usr/local/bin/k8s-provision.sh
+    permissions: '0755'
+    encoding: gz+b64
+    content: ${provision_gz}
+
+  - path: /etc/profile.d/k8s-app.sh
+    permissions: '0644'
+    encoding: gz+b64
+    content: ${profile_gz}
+
+%{ for name, data in kurs_files ~}
+  - path: ${jsonencode("/etc/skel/k8s-kurs/${name}")}
+    permissions: '0644'
+    encoding: gz+b64
+    content: ${data}
+
+%{ endfor ~}
+# Erst Software installieren, dann Cluster und Nutzer einrichten.
 runcmd:
   - systemctl restart ssh
-  - bash /usr/local/bin/k8s-provision.sh > /var/log/k8s-provision.log 2>&1
+  - bash -c "/usr/local/sbin/k8s-install.sh && /usr/local/bin/k8s-provision.sh" > /var/log/k8s-provision.log 2>&1
 
 final_message: "Kubernetes-Team-Cluster bereit - Log unter /var/log/k8s-provision.log"
