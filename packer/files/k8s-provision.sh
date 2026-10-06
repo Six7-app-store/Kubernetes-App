@@ -2,21 +2,9 @@
 set -euo pipefail
 
 # -----------------------------------------------------------------------------
-# Kubernetes-App: Erststart der Team-VM
-#
-# Aufgerufen von cloud-init (runcmd), nachdem die Linux-Nutzer angelegt sind.
-# Startet den k3s-Cluster und richtet fuer jeden Nutzer ein:
-#   - einen eigenen Namespace (Name = Benutzername) mit Rolle "admin"
-#   - Rolle "admin" im gemeinsamen Namespace "team"
-#   - Lesezugriff auf Nodes, Namespaces und StorageClasses
-#   - ~/.kube/config mit einem Token fuer genau diese Rechte
-#
-# Die Nutzer bekommen KEIN sudo und keinen Zugriff auf die Admin-Kubeconfig
-# (/etc/rancher/k3s/k3s.yaml, 0600 root). Pod Security "baseline" auf allen
-# Nutzer-Namespaces verhindert privilegierte Pods und hostPath - sonst kaeme
-# man ueber einen Pod doch an root auf dem Node.
-#
-# Idempotent: mehrfaches Ausfuehren legt nichts doppelt an.
+# Kubernetes-App: Erststart der Team-VM (von cloud-init aufgerufen)
+# Startet k3s und gibt jedem Nutzer einen eigenen Namespace, Zugriff auf den
+# Namespace "team" und eine ~/.kube/config. Idempotent.
 # -----------------------------------------------------------------------------
 
 USERS_FILE=/etc/k8s-app/users
@@ -28,9 +16,7 @@ log() { echo "[$(date -Is)] $*"; }
 # -----------------------------------------------------------------------------
 # [1] k3s konfigurieren und starten
 # -----------------------------------------------------------------------------
-# Die oeffentliche IPv6-Adresse kommt ins API-Zertifikat, damit man den
-# Cluster spaeter auch von aussen ansprechen koennte (Port 6443 ist in der
-# Firewall aber bewusst zu - Zugriff laeuft ueber SSH).
+# IPv6-Adresse ins API-Zertifikat (Port 6443 bleibt aber zu).
 ipv6=$(ip -6 -o addr show scope global | awk '{print $4}' | cut -d/ -f1 | head -n1 || true)
 
 mkdir -p /etc/rancher/k3s
@@ -49,15 +35,20 @@ for _ in $(seq 1 90); do
   kubectl get --raw /readyz >/dev/null 2>&1 && break
   sleep 5
 done
+
+# Erst warten, bis der Node existiert - sonst bricht "wait" sofort ab.
+for _ in $(seq 1 60); do
+  [ -n "$(kubectl get nodes -o name 2>/dev/null)" ] && break
+  sleep 2
+done
 kubectl wait --for=condition=Ready node --all --timeout=300s
 
 # -----------------------------------------------------------------------------
 # [2] Firewall
 # -----------------------------------------------------------------------------
-# Erst SSH freigeben, dann einschalten. Pod- und Service-Netz von k3s
-# muessen durch, sonst erreichen Pods weder CoreDNS noch einander.
+# Erst SSH freigeben, dann einschalten. Pod-/Service-Netz muss durch.
 log "Configuring ufw..."
-ufw allow OpenSSH
+ufw allow 22/tcp
 ufw allow 80/tcp
 ufw allow 443/tcp
 ufw allow 30000:32767/tcp
@@ -123,8 +114,7 @@ while read -r user; do
     --clusterrole=k8s-app-cluster-viewer --serviceaccount="$ns:$user" \
     --dry-run=client -o yaml | kubectl apply -f -
 
-  # Langlebiges Token: seit Kubernetes 1.24 nur noch ueber ein explizites
-  # Secret. Der Token-Controller fuellt es kurz nach dem Anlegen.
+  # Langlebiges Token (seit K8s 1.24 nur per explizitem Secret).
   kubectl apply -f - <<EOF
 apiVersion: v1
 kind: Secret
