@@ -1,0 +1,47 @@
+=====================================================================
+ Kubernetes-Lernumgebung
+=====================================================================
+
+Dein Team hat einen eigenen Kubernetes-Cluster (k3s, ein Node).
+kubectl ist schon eingerichtet - einfach loslegen.
+
+Deine Namespaces
+----------------
+  <dein-benutzername>   dein eigener Namespace (Standard-Kontext)
+  team                  gemeinsamer Namespace fuer das ganze Team
+
+  kubectl config get-contexts          Kontexte anzeigen
+  kubectl config use-context team      in den Team-Namespace wechseln
+  kubectl config use-context <name>    zurueck in den eigenen
+
+Erste Schritte
+--------------
+  kubectl get nodes                    der Cluster-Node
+  kubectl get pods                     Pods im aktuellen Namespace
+  kubectl apply -f beispiele/01-pod.yaml
+  kubectl get pods -w                  zuschauen (Strg+C beendet)
+  kubectl logs hallo
+  kubectl delete -f beispiele/01-pod.yaml
+
+Kurzformen: "k" statt "kubectl", Tab-Vervollstaendigung ist aktiv.
+
+Beispiele (in dieser Reihenfolge)
+---------------------------------
+  01-pod.yaml          ein einzelner Pod
+  02-deployment.yaml   Deployment mit 3 Replikas + Service
+  03-nodeport.yaml     Service von aussen erreichbar machen (Port 30080)
+  04-configmap.yaml    Konfiguration ueber ConfigMap einbinden
+
+Werkzeuge
+---------
+  k9s                  Terminal-Oberflaeche fuer den Cluster
+  helm                 Paketmanager, z.B.:
+                         helm repo add bitnami https://charts.bitnami.com/bitnami
+                         helm install mein-redis bitnami/redis
+
+Grenzen
+-------
+  - Kein sudo, kein Zugriff auf andere Namespaces ausser "team".
+  - Privilegierte Pods und hostPath sind gesperrt (Pod Security "baseline").
+  - NodePorts 30000-32767 sind von aussen ueber die IPv6-Adresse
+    der VM erreichbar. Pro Team teilt ihr euch diese Ports.

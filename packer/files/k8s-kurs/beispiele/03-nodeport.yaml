@@ -1,0 +1,15 @@
+# Setzt 02-deployment.yaml voraus.
+# Danach im Browser: http://[<IPv6-Adresse der VM>]:30080
+# Der Port gilt clusterweit - im Team muss jede Person einen anderen nehmen.
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-extern
+spec:
+  type: NodePort
+  selector:
+    app: web
+  ports:
+    - port: 80
+      targetPort: 80
+      nodePort: 30080
