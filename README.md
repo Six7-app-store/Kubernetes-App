@@ -48,10 +48,10 @@ Jeder Nutzer findet nach dem Login unter `~/k8s-kurs/` folgende Struktur:
 |---|---|
 | VMs | **eine VM pro Team** – jedes Team hat einen eigenen Cluster |
 | Flavor | im Wizard wählbar, Standard `gp1.small` |
-| Betriebssystem | Ubuntu 24.04 (Packer-Image) |
+| Betriebssystem | Ubuntu 24.04, Software wird beim ersten Boot per cloud-init installiert |
 | Erreichbarkeit | IPv6-Adresse der VM, SSH auf Port 22 |
 | Offene Ports | 22 (SSH), 80/443 (Traefik), 30000–32767 (NodePorts) |
-| Bereit nach | ca. 3 Minuten nach dem Start der VM |
+| Bereit nach | ca. 5–6 Minuten nach dem Start der VM |
 | Obergrenze | `max_teams`, Standard 15 Team-Cluster pro Deployment |
 
 Ob die Ports 80/443 und die NodePorts tatsächlich von außen erreichbar sind,
@@ -61,36 +61,34 @@ hängt zusätzlich von der gewählten Security Group ab.
 
 | Variable | Wizard-Feld | Standard |
 |---|---|---|
+| `image_name` | Image-Auswahl | `Ubuntu 24.04` |
 | `network_uuid` | Netzwerk-Auswahl | DHBWV6-Netz |
 | `shared_secgroup_id` | Security-Group-Auswahl | gemeinsame App-Store-SG |
 | `flavor_name` | Flavor-Auswahl | `gp1.small` |
 | `floating_ip_pool` | External-Network-Auswahl (derzeit ungenutzt) | `DHBW` |
 | `max_teams` | Obergrenze | `15` |
 
-`users` und `image_name` setzt der AppStore selbst (`@platform:internal`).
+`users` setzt der AppStore selbst.
 
 ## Aufbau
 
-    Kubernetes-App/
-    ├── packer/
-    │   ├── template.pkr.hcl
-    │   ├── variables.pkr.hcl
-    │   ├── scripts/provision.sh      ← baut das Image (k3s, helm, k9s)
-    │   └── files/
-    │       ├── k8s-provision.sh      ← Erststart: Cluster + Nutzer-RBAC
-    │       ├── profile.sh            ← Alias und Completion
-    │       └── k8s-kurs/             ← Lernmaterial (→ /etc/skel)
-    └── terraform/
-        ├── main.tf
-        ├── variables.tf
-        ├── outputs.tf
-        └── cloud-init.yml.tpl
+Reine OpenTofu-App nach ADR 0010: ein Ordner `tofu/`, kein Packer, kein
+Image-Bau.
 
-**Warum startet k3s erst auf der Team-VM?** Würde der Cluster schon beim
-Image-Bau laufen, steckten Zertifikate, Node-Name und IP der Build-VM im Image.
-Packer installiert k3s deshalb nur; `k8s-provision.sh` startet ihn beim
-ersten Boot und richtet danach Namespaces, ServiceAccounts und die
-`~/.kube/config` jedes Nutzers ein.
+    Kubernetes-App/
+    └── tofu/
+        ├── main.tofu
+        ├── variables.tofu
+        ├── outputs.tofu
+        ├── cloud-init.yml.tpl        ← legt Nutzer und Dateien an, startet die Skripte
+        └── files/
+            ├── install.sh            ← installiert k3s, kubectl, helm, k9s
+            ├── k8s-provision.sh      ← startet den Cluster, richtet Nutzer-RBAC ein
+            ├── profile.sh            ← Alias und Completion
+            └── k8s-kurs/             ← Lernmaterial (→ /etc/skel)
+
+Beim ersten Boot läuft zuerst `install.sh`, danach `k8s-provision.sh`. Die
+Skripte gehen gzip-komprimiert in die `user_data` (etwa 12 KB, Limit 64 KB).
 
 ## Fehlersuche
 
@@ -102,12 +100,23 @@ Auf der VM (als Admin über die OpenStack-Konsole):
 
 ## Lokale Checks
 
-    cd terraform && tofu fmt -check && tofu init -backend=false && tofu validate
-    cd packer && packer fmt -check . && packer init . && packer validate -syntax-only .
+    cd tofu && tofu fmt -check && tofu init -backend=false && tofu validate
+    shellcheck tofu/files/*.sh
 
 ## Release
 
 Der AppStore deployt nur Git-Tags im Format `v<Major>.<Minor>.<Patch>`.
+
+### v2.0.0
+
+Umstellung auf OpenTofu (ADR 0010): Ordner `tofu/` mit `.tofu`-Dateien,
+kein Packer mehr. Die Software wird beim ersten Boot installiert, der
+Cluster ist daher erst nach etwa 5–6 Minuten bereit. Neue Wizard-Variable
+`image_name` für das Basis-Image.
+
+### v1.0.1
+
+Eigenständiges kubectl für Nutzer, stabiler Erststart.
 
 ### v1.0.0
 

@@ -1,7 +1,7 @@
-# Checks what the AppStore worker will run, without a cloud: OpenTofu and
-# Packer must parse and validate the app. Credentials are never needed here;
-# a real build and deploy only happen in the AppStore, in the deployer's
-# project.
+# Checks what the AppStore worker will run, without a cloud: the OpenTofu
+# code must parse and validate, the shell scripts must pass shellcheck.
+# Credentials are never needed here; a real deploy only happens in the
+# AppStore, in the deployer's project.
 name: Validate
 
 on:
@@ -19,26 +19,15 @@ jobs:
 
       - uses: opentofu/setup-opentofu@v1
         with:
-          # Same version as the AppStore worker image.
-          tofu_version: 1.12.6
+          # Same version as the AppStore worker image (ADR 0010).
+          tofu_version: 1.13.1
 
       - name: OpenTofu
-        working-directory: terraform
+        working-directory: tofu
         run: |
           tofu fmt -check -recursive
           tofu init -backend=false -input=false
           tofu validate
 
-      - uses: hashicorp/setup-packer@v3
-        if: hashFiles('packer/**') != ''
-        with:
-          version: 1.16.1
-
-      - name: Packer
-        if: hashFiles('packer/**') != ''
-        working-directory: packer
-        run: |
-          packer fmt -check -recursive .
-          packer init .
-          # A full validate would sign in to OpenStack.
-          packer validate -syntax-only .
+      - name: ShellCheck
+        run: shellcheck tofu/files/*.sh
